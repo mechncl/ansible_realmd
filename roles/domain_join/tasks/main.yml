@@ -1,0 +1,135 @@
+---
+# tasks that run after a new deployment
+
+- name: Load Secrets
+  include_vars: "secrets.yml"
+
+- name: Load Variables
+  include_vars: "vars.yml"
+
+- name: Установка пакетов для Debian/Ubuntu
+  when: ansible_os_family == "Debian"
+  apt: 
+    state: present 
+    update_cache: yes
+    name:
+      - sudo
+      - realmd
+      - sssd
+      - adcli
+      - krb5-user
+      - sssd-tools
+      - samba-common
+      - packagekit
+      - samba-common-bin
+      - samba-libs
+  tags: ad  
+
+- name: Установка пакетов для Redhat/CentOS
+  when: ansible_os_family == "RedHat"
+  yum: 
+    state: present 
+    update_cache: yes
+    name:
+      - realmd
+      - oddjob
+      - oddjob-mkhomedir
+      - sssd
+      - adcli
+      - openldap-clients
+      - samba-common
+      - samba-common-tools
+      - krb5-workstation
+  tags: ad
+
+- name: Копирование realmd.conf
+  template: 
+    src: realmd.conf.j2
+    dest: /etc/realmd.conf
+    owner: root
+    group: root
+    mode: 0644
+  tags: ad
+
+- name: Копирование krb5.conf
+  template: 
+    src: krb5.conf.j2
+    dest: /etc/krb5.conf
+    backup: yes
+    owner: root
+    group: root
+    mode: 0644
+  tags: ad
+
+- name: Выполнение realm discover
+  command: /bin/bash -c "/usr/sbin/realm discover {{ realm_domain }}"
+  register: realm_discover_results
+  tags: ad
+
+- name: Debug realm discover
+  debug: 
+    msg: "{{ realm_discover_results.stdout }}"
+
+- name: Создание kerberos ticket
+  command: /bin/bash -c "echo {{ kerberos_user_password }} | /usr/bin/kinit -V {{ kerberos_user }}"
+  tags: ad
+
+- name: Проверка на наличие системы в AD
+  command: /bin/bash -c "/usr/sbin/realm list"
+  register: realm_list_results
+  tags: ad
+
+- name: Debug realm_list_results
+  debug:
+    msg: "{{ realm_list_results.stdout }}"
+
+- name: Подключение системы к AD
+  command: /bin/bash -c "echo {{ kerberos_user_password }} | /usr/sbin/realm join {{ realm_domain }} --computer-ou='{{ realm_ad_ou }}' --user={{ kerberos_user }}"
+  ignore_errors: no
+  when: realm_list_results.stdout == ""
+  become: true
+  tags: ad
+
+- name: Добавление админской группы в sudoers
+  lineinfile:
+    dest: /etc/sudoers.d/admins
+    create: yes
+    state: present
+    line: "%admins ALL=(ALL) ALL" 
+    validate: "/usr/sbin/visudo -cf %s"
+
+- name: Копирование sssd.conf
+  template:
+    src: sssd.conf.j2
+    dest: /etc/sssd/sssd.conf
+    owner: root
+    group: root
+    mode: 0600
+  tags: ad
+
+
+- name: Копирование pam mkhomedir для старых дистрибутивов на базе debian
+  when: (ansible_facts['distribution'] == "Debian" and ansible_facts['distribution_version'] <= "9") or
+          (ansible_facts['distribution'] == "Ubuntu" and ansible_facts['distribution_version'] <= "16.04")
+  template:
+    src: mkhomedir.j2
+    dest: /usr/share/pam-configs/mkhomedir
+    owner: root
+    group: root
+    mode: 0644
+  tags: ad
+
+- name: Включение опции pam mkhomedir
+  when: ansible_os_family == "Debian"
+  environment:
+    DEBIAN_FRONTEND: "noninteractive"
+  shell: /usr/sbin/pam-auth-update --enable mkhomedir
+  become: True
+  tags: ad
+
+- name: Перезапуск серивса sssd
+  service:
+    name: sssd
+    state: restarted
+    enabled: yes
+  tags: ad

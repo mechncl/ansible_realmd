@@ -1,0 +1,7 @@
+---
+
+realm_domain: domain.com
+# It is important that krb5 domain is in ALL CAPITALS
+krb5_default_realm: DOMAIN.COM
+realm_ad_ou: OU=servers_ou,DC=domain,DC=com
+sssd_access_filter: (memberOf=cn=admins,ou=GROUPS,dc=domain,dc=com)

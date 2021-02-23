@@ -1,0 +1,9 @@
+---
+
+# Плейбук для настройки доменной авторизации Active Directory в linux-системах на базе Debian и RedHat.
+
+- name: Ввод хоста в домен Active Directory
+  hosts: linux
+  become: true
+  roles:
+   - role: domain_join
