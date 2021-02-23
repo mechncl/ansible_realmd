@@ -23,9 +23,10 @@
 **realmd.conf.j2** Конфигурационный файл realmd
 
 **sssd.conf.j2** Конфигурационный файл sssd - именно в нем можно изменить основные настройки, такие как кеширование паролей, default shell, путь к создаваемым домашним директориям, access-filter и.т.д.
-[Подробнее о конфигурационном файле realmd.comf] (https://manpages.debian.org/testing/sssd-common/sssd.conf.5.en.html)
+[Подробнее о конфигурационном файле realmd.comf](https://manpages.debian.org/testing/sssd-common/sssd.conf.5.en.html)
 
 #### roles/domain_join/tasks/main.yml
   
 В блоке "Добавление админской группы в sudoers" указывается группа из Active Directory, в которую входят администраторы:
+
 line: "%linux-admins ALL=(ALL) ALL"
